@@ -47,7 +47,6 @@ int exec_internal_command(char **parsed_command) {
         exit(0);
     }
     else if (strcmp(command_name, "test") == 0) {
-        ;
         return 0;
     }
     else if (strcmp(command_name, "cd") == 0) {
@@ -69,9 +68,13 @@ int exec_internal_command(char **parsed_command) {
                 return -1;
             }
             dup2(script_fd, STDIN_FILENO);
-            int status = execl("./a", "a", "-noprompt", NULL);
+            // NOTE: name of the executable is hardcoded. `source` won't work
+            // unless shell execuable is found at this location.
+            int status = execl("./lab2shell", "lab2shell", "-noprompt", NULL);
             if (status == -1) {
-                fprintf(stderr, "Error: Could not execute the command");
+                fprintf(stderr,
+                        "Error: Could not execute the command. Line %d",
+                        __LINE__);
             }
 
             return 0;
@@ -85,6 +88,8 @@ int exec_internal_command(char **parsed_command) {
         return 0;
     }
     else if (strcmp(command_name, "echo") == 0) {
+        // NOTE: Quotes are not parsed. `echo "hello world" prints `"hello
+        // world"` not `hello world`.
         for (char **itr = parsed_command + 1; *itr != NULL; itr++) {
             printf("%s ", *itr);
         }
@@ -95,6 +100,7 @@ int exec_internal_command(char **parsed_command) {
     return 1;
 }
 
+// remove trailing whitespace
 void strstrip(char *s) {
     size_t size;
     char *end;
@@ -166,9 +172,10 @@ int exec_single_command(char *command, int pipe_fd[2], bool background) {
     int redirection_fd[2]; // in, out
 
     if (parse_file_redirection(redirection_fd, command) != 0) {
-        fprintf(stderr, "Error: Could not parse file redirections\n");
+        fprintf(stderr, "Error: Could not parse file redirections. Line %d\n",
+                __LINE__);
         return -1;
-    };
+    }
 
     char **args = parse_command_with_spaces(command);
 
@@ -181,6 +188,8 @@ int exec_single_command(char *command, int pipe_fd[2], bool background) {
     pid_t pid = fork();
 
     if (pid == 0) {
+        // child process
+
         if (redirection_fd[READ] != -1) {
             dup2(redirection_fd[READ], STDIN_FILENO);
         }
@@ -195,8 +204,12 @@ int exec_single_command(char *command, int pipe_fd[2], bool background) {
         }
 
         int status = execvp(args[0], args);
+        // NOTE: ^C if passes via stdin, may not be understood by the shell.
         if (status == -1) {
-            fprintf(stderr, "Error: Could not execute the command\n");
+            fprintf(stderr,
+                    "Error: Could not execute the command. `%s` is not a "
+                    "valid command.\n",
+                    args[0]);
         }
         return 0;
     }
